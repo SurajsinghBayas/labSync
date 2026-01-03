@@ -41,7 +41,7 @@ function isSubmissionUrl(url: string): boolean {
 }
 
 // Normalize URL for comparison (remove trailing slashes, query params)
-export function normalizeUrl(url: string): string {
+function normalizeUrl(url: string): string {
     try {
         const urlObj = new URL(url);
         // Keep only the pathname without query params

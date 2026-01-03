@@ -178,7 +178,7 @@ export default function TeacherStudentsPage() {
     };
 
     // Filter and sort students
-    let filteredStudents = students.filter((student) => {
+    const filteredStudents = students.filter((student) => {
         const matchesSearch =
             student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||

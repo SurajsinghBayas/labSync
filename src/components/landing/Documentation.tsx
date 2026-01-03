@@ -138,7 +138,7 @@ export function Documentation() {
                                     </div>
                                     <CardTitle className="text-xl">3. Evaluation</CardTitle>
                                     <CardDescription className="text-base text-zinc-500">
-                                        Track "Solved" status in real-time. Export comprehensive Excel reports containing proof links and code.
+                                        Track &quot;Solved&quot; status in real-time. Export comprehensive Excel reports containing proof links and code.
                                     </CardDescription>
                                 </CardHeader>
                             </Card>

@@ -659,7 +659,7 @@ export default function StudentLabsPage() {
                                 </div>
                             </div>
                             <CardDescription>
-                                Submit your solution for "{currentProblem.title}"
+                                Submit your solution for &quot;{currentProblem.title}&quot;
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
