@@ -8,7 +8,7 @@
 
 Bridging HackerRank and your gradebook with automated verification and seamless tracking.
 
-[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-LabSync-00C853?style=for-the-badge)](https://labsync.vercel.app)
+[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-LabSync-00C853?style=for-the-badge)](https://labsyncit.vercel.app)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 
@@ -40,7 +40,7 @@ Bridging HackerRank and your gradebook with automated verification and seamless 
 
 </div>
 
-- **Frontend:** Next.js 14, React, Tailwind CSS, Shadcn/UI, Framer Motion
+- **Frontend:** Next.js 15, React, Tailwind CSS, Shadcn/UI, Framer Motion
 - **Backend:** Appwrite (Authentication, Database, Storage)
 - **Database:** Appwrite Database
 - **Deployment:** Vercel
