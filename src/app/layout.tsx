@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+    metadataBase: new URL("https://labsyncit.vercel.app"),
     title: "LabSync - HackerRank Lab Management",
     description:
         "Seamlessly track and manage HackerRank lab submissions for students and teachers. The smart bridge between coding practice and academic assessment.",
