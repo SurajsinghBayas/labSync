@@ -95,7 +95,7 @@ export default function DashboardLayout({
     const navItems = role === "teacher" ? teacherNav : studentNav;
 
     return (
-        <div className="min-h-screen bg-muted/30 flex">
+        <div className="min-h-screen bg-muted/30 flex font-inter">
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div

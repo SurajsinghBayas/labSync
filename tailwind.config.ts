@@ -53,6 +53,7 @@ export default {
             fontFamily: {
                 sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
                 mono: ["var(--font-geist-mono)", "monospace"],
+                inter: ["var(--font-inter)", "sans-serif"],
             },
         },
     },
