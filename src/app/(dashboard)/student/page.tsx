@@ -35,61 +35,94 @@ export default function StudentDashboard() {
             try {
                 const userData = await account.get();
                 setUser(userData);
-
                 const databaseId = getDatabaseId();
 
-                // 1. Fetch Submissions for Stats and Activity
-                const submissionsResponse = await databases.listDocuments(
-                    databaseId,
-                    COLLECTIONS.SUBMISSIONS,
-                    [
-                        Query.equal("userId", userData.$id),
-                        Query.orderDesc("$updatedAt"),
-                        Query.limit(10)
-                    ]
-                ).catch(err => {
-                    console.error("Submissions fetch error", err);
-                    return { documents: [], total: 0 };
-                });
+                // Start all initial fetches in parallel
+                // This drastically reduces load time by multitasking network requests
+                const [
+                    submissionsResponse,
+                    solvedCountResponse,
+                    pendingCountResponse,
+                    problemsTotalResponse,
+                    studentDoc,
+                    labsResponse
+                ] = await Promise.all([
+                    // 1. Recent Submissions (for Activity)
+                    databases.listDocuments(
+                        databaseId,
+                        COLLECTIONS.SUBMISSIONS,
+                        [
+                            Query.equal("userId", userData.$id),
+                            Query.orderDesc("$updatedAt"),
+                            Query.limit(5)
+                        ]
+                    ).catch(() => ({ documents: [] })),
 
-                const allSubmissionsResponse = await databases.listDocuments(
-                    databaseId,
-                    COLLECTIONS.SUBMISSIONS,
-                    [
-                        Query.equal("userId", userData.$id),
-                        Query.limit(100)
-                    ]
-                ).catch(() => ({ documents: [], total: 0 }));
+                    // 2. Count Solved (Efficient count only)
+                    databases.listDocuments(
+                        databaseId,
+                        COLLECTIONS.SUBMISSIONS,
+                        [
+                            Query.equal("userId", userData.$id),
+                            Query.equal("status", "solved"),
+                            Query.limit(1)
+                        ]
+                    ).catch(() => ({ total: 0 })),
 
-                const submissions = allSubmissionsResponse.documents;
-                const solvedCount = submissions.filter((s: any) => s.status === "solved").length;
-                const pendingCount = submissions.filter((s: any) => s.status === "attempted").length;
+                    // 3. Count Pending (Efficient count only)
+                    databases.listDocuments(
+                        databaseId,
+                        COLLECTIONS.SUBMISSIONS,
+                        [
+                            Query.equal("userId", userData.$id),
+                            Query.equal("status", "attempted"),
+                            Query.limit(1)
+                        ]
+                    ).catch(() => ({ total: 0 })),
 
-                // 2. Fetch Total Problems
-                const problemsResponse = await databases.listDocuments(
-                    databaseId,
-                    COLLECTIONS.PROBLEMS,
-                    [Query.limit(1)]
-                ).catch(() => ({ total: 0 }));
-                const totalProblems = problemsResponse.total;
+                    // 4. Total Problems Count
+                    databases.listDocuments(
+                        databaseId,
+                        COLLECTIONS.PROBLEMS,
+                        [Query.limit(1)]
+                    ).catch(() => ({ total: 0 })),
 
+                    // 5. Student Profile
+                    databases.getDocument(databaseId, COLLECTIONS.USERS, userData.$id).catch(() => null),
+
+                    // 6. Labs List
+                    databases.listDocuments(
+                        databaseId,
+                        COLLECTIONS.LABS,
+                        [Query.limit(20), Query.orderAsc("deadline")]
+                    ).catch(() => ({ documents: [] }))
+                ]);
+
+
+                // --- Set Stats (Instant) ---
                 setStats({
-                    solved: solvedCount,
-                    pending: pendingCount,
-                    total: totalProblems,
+                    solved: solvedCountResponse.total,
+                    pending: pendingCountResponse.total,
+                    total: problemsTotalResponse.total,
                 });
 
-                // 3. Process Recent Activity
-                const recentItems = await Promise.all(submissionsResponse.documents.slice(0, 5).map(async (submission: any) => {
+                // --- Process Recent Activity (Parallel Detail Fetch) ---
+                const recentItems = await Promise.all(submissionsResponse.documents.map(async (submission: any) => {
                     try {
+                        // Fetch Problem Details
                         const problem = await databases.getDocument(
                             databaseId,
                             COLLECTIONS.PROBLEMS,
                             submission.problemId
                         );
 
+                        // Optimistic Lab Title (try to find in already loaded labs first to save a request)
                         let labTitle = "Lab";
-                        if (problem.labId) {
+                        const cachedLab = labsResponse.documents.find((l: any) => l.$id === problem.labId);
+
+                        if (cachedLab) {
+                            labTitle = cachedLab.title;
+                        } else if (problem.labId) {
                             try {
                                 const lab = await databases.getDocument(databaseId, COLLECTIONS.LABS, problem.labId);
                                 labTitle = lab.title;
@@ -102,7 +135,7 @@ export default function StudentDashboard() {
                             lab: labTitle,
                             difficulty: problem.difficulty,
                             status: submission.status,
-                            lastAction: submission.$updatedAt || submission.submittedAt, // Use system updated at or field
+                            lastAction: submission.$updatedAt || submission.submittedAt,
                         };
                     } catch (e) {
                         return null;
@@ -111,8 +144,8 @@ export default function StudentDashboard() {
 
                 setRecentActivity(recentItems.filter(Boolean));
 
-                // 4. Fetch student profile for filtering
-                const studentDoc = await databases.getDocument(databaseId, COLLECTIONS.USERS, userData.$id).catch(() => null);
+
+                // --- Process Active Labs ---
                 const studentProfile = {
                     branch: studentDoc?.branch || null,
                     year: studentDoc?.year || null,
@@ -120,14 +153,6 @@ export default function StudentDashboard() {
                     batch: studentDoc?.batch || null,
                 };
 
-                // 5. Fetch Active Labs (filtered by student profile)
-                const labsResponse = await databases.listDocuments(
-                    databaseId,
-                    COLLECTIONS.LABS,
-                    [Query.limit(20), Query.orderAsc("deadline")]
-                ).catch(() => ({ documents: [] }));
-
-                // Filter labs based on student's profile
                 const filteredLabs = labsResponse.documents.filter((lab: any) => {
                     if (!lab.branch && !lab.year && !lab.division && !lab.batch) return true;
                     if (lab.branch && lab.branch !== studentProfile.branch) return false;
@@ -137,26 +162,38 @@ export default function StudentDashboard() {
                     return true;
                 });
 
+                // Parallelize progress checks for active labs (Count, don't download everything)
+                // We fetch specific counts for this user + lab combination
                 const labsWithProgress = await Promise.all(filteredLabs.slice(0, 5).map(async (lab: any) => {
-                    const labProblems = await databases.listDocuments(
-                        databaseId,
-                        COLLECTIONS.PROBLEMS,
-                        [Query.equal("labId", lab.$id)]
-                    ).catch(() => ({ total: 0 }));
-                    const totalLabProblems = labProblems.total;
+                    const [labProblemsRes, solvedInLabRes] = await Promise.all([
+                        // Total Problems in this Lab
+                        databases.listDocuments(
+                            databaseId,
+                            COLLECTIONS.PROBLEMS,
+                            [Query.equal("labId", lab.$id), Query.limit(1)]
+                        ).catch(() => ({ total: 0 })),
+                        // User Solved in this Lab
+                        databases.listDocuments(
+                            databaseId,
+                            COLLECTIONS.SUBMISSIONS,
+                            [
+                                Query.equal("userId", userData.$id),
+                                Query.equal("labId", lab.$id),
+                                Query.equal("status", "solved"),
+                                Query.limit(1)
+                            ]
+                        ).catch(() => ({ total: 0 }))
+                    ]);
 
-                    if (totalLabProblems === 0) return { ...lab, progress: 0 };
-
-                    const solvedInLab = submissions.filter((s: any) =>
-                        s.labId === lab.$id && s.status === "solved"
-                    ).length;
+                    const totalLabProblems = labProblemsRes.total;
+                    const solvedInLab = solvedInLabRes.total;
 
                     return {
                         id: lab.$id,
                         title: lab.title,
                         subject: lab.subject,
                         deadline: lab.deadline,
-                        progress: Math.round((solvedInLab / totalLabProblems) * 100)
+                        progress: totalLabProblems === 0 ? 0 : Math.round((solvedInLab / totalLabProblems) * 100)
                     };
                 }));
 
